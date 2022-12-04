@@ -1,13 +1,15 @@
 mod data;
 
-fn score_round(round: &(char, char)) -> usize {
-    const ROCK: usize = 1;
-    const PAPER: usize = 2;
-    const SCISSORS: usize = 3;
-    const LOSS: usize = 0;
-    const DRAW: usize = 3;
-    const WIN: usize = 6;
+type Score = usize;
 
+const ROCK: Score = 1;
+const PAPER: Score = 2;
+const SCISSORS: Score = 3;
+const LOSS: Score = 0;
+const DRAW: Score = 3;
+const WIN: Score = 6;
+
+fn score_round(round: &(char, char)) -> Score {
     match round {
         ('A', 'X') => ROCK + DRAW,
         ('A', 'Y') => PAPER + WIN,
@@ -22,8 +24,27 @@ fn score_round(round: &(char, char)) -> usize {
     }
 }
 
-fn calculate_solution(strategy: &[(char, char)]) -> usize {
-    strategy.iter().map(score_round).sum()
+fn play_round(round: &(char, char)) -> Score {
+    match round {
+        ('A', 'X') => SCISSORS + LOSS,
+        ('A', 'Y') => ROCK + DRAW,
+        ('A', 'Z') => PAPER + WIN,
+
+        ('B', 'X') => ROCK + LOSS,
+        ('B', 'Y') => PAPER + DRAW,
+        ('B', 'Z') => SCISSORS + WIN,
+
+        ('C', 'X') => PAPER + LOSS,
+        ('C', 'Y') => SCISSORS + DRAW,
+        ('C', 'Z') => ROCK + WIN,
+        _ => panic!("wrong shapes!"),
+    }
+}
+
+fn calculate_solution(strategy: &[(char, char)]) -> (Score, Score) {
+    let presumed_score = strategy.iter().map(score_round).sum();
+    let real_score = strategy.iter().map(play_round).sum();
+    (presumed_score, real_score)
 }
 
 fn main() {
