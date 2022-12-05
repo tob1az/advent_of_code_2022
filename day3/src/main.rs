@@ -1,26 +1,36 @@
 mod data;
 
+use itertools::Itertools;
 use std::collections::HashSet;
 
 type Priority = u32;
 type Item = char;
+type Items = HashSet<Item>;
 
 #[derive(Debug)]
-struct Rucksack<'a> {
-    compartments: [&'a str; 2],
+struct Rucksack {
+    items: Items,
+    first_compartment: Items,
+    second_compartment: Items,
 }
 
-fn parse_rucksacks<'a>(rucksacks: &'a [&'a str]) -> Vec<Rucksack<'a>> {
+impl Rucksack {
+    fn new(items: &str) -> Self {
+        debug_assert!(items.len() % 2 == 0);
+        let (first, second) = items.split_at(items.len() / 2);
+        Self {
+            items: items.chars().collect::<Items>(),
+            first_compartment: first.chars().collect::<Items>(),
+            second_compartment: second.chars().collect::<Items>(),
+        }
+    }
+}
+
+fn parse_rucksacks(rucksacks: &[&str]) -> Vec<Rucksack> {
     rucksacks
         .iter()
-        .map(|r| {
-            debug_assert!(r.len() % 2 == 0);
-            let (first_compartment, second_compartment) = r.split_at(r.len() / 2);
-            Rucksack {
-                compartments: [first_compartment, second_compartment],
-            }
-        })
-        .collect::<Vec<Rucksack<'a>>>()
+        .map(|r| Rucksack::new(*r))
+        .collect::<Vec<_>>()
 }
 
 fn prioritize(item: Item) -> Priority {
@@ -35,18 +45,39 @@ fn prioritize(item: Item) -> Priority {
     }
 }
 
-fn calculate_solution(rucksacks: &[&str]) -> Priority {
+fn calculate_solution(rucksacks: &[&str]) -> (Priority, Priority) {
     let rucksacks = parse_rucksacks(rucksacks);
-    rucksacks
+    let answer1 = rucksacks
         .iter()
         .map(|rucksack| {
-            let items0 = rucksack.compartments[0].chars().collect::<HashSet<_>>();
-            let items1 = rucksack.compartments[1].chars().collect::<HashSet<_>>();
-            let duplicates = items0.intersection(&items1).collect::<Vec<_>>();
+            let duplicates = rucksack
+                .first_compartment
+                .intersection(&rucksack.second_compartment)
+                .cloned()
+                .collect::<Vec<_>>();
             debug_assert!(duplicates.len() == 1);
-            prioritize(*duplicates.into_iter().next().unwrap())
+            prioritize(duplicates[0])
         })
-        .sum()
+        .sum();
+
+    debug_assert!(rucksacks.len() % 3 == 0);
+    let answer2 = rucksacks
+        .into_iter()
+        .tuples()
+        .map(|(first, second, third)| {
+            let shared = first
+                .items
+                .intersection(&second.items)
+                .cloned()
+                .collect::<HashSet<_>>();
+            debug_assert!(shared.len() >= 1);
+            let shared = third.items.intersection(&shared).collect::<Vec<_>>();
+            debug_assert!(shared.len() == 1);
+            prioritize(*shared[0])
+        })
+        .sum();
+
+    (answer1, answer2)
 }
 
 fn main() {
