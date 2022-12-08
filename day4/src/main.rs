@@ -12,9 +12,26 @@ impl Range {
         debug_assert!(range.from <= range.to);
         self.from <= range.from && self.to >= range.to
     }
+
+    fn overlaps(&self, range: &Range) -> bool {
+        debug_assert!(range.from <= range.to);
+        !((self.from < range.from && self.to < range.from)
+            || (self.from > range.to && self.to > range.to))
+    }
 }
 
 type Pair = (Range, Range);
+
+fn count_duplicates(pairs: &[Pair]) -> usize {
+    pairs
+        .iter()
+        .filter(|pair| pair.0.contains(&pair.1) || pair.1.contains(&pair.0))
+        .count()
+}
+
+fn count_overlaps(pairs: &[Pair]) -> usize {
+    pairs.iter().filter(|pair| pair.0.overlaps(&pair.1)).count()
+}
 
 fn parse_assignments(assignments: &str) -> Vec<Pair> {
     assignments
@@ -37,11 +54,10 @@ fn parse_assignments(assignments: &str) -> Vec<Pair> {
         .collect()
 }
 
-fn calculate_solution(assignments: &str) -> usize {
-    parse_assignments(assignments)
-        .iter()
-        .filter(|pair| pair.0.contains(&pair.1) || pair.1.contains(&pair.0))
-        .count()
+fn calculate_solution(assignments: &str) -> (usize, usize) {
+    let assignments = parse_assignments(assignments);
+
+    (count_duplicates(&assignments), count_overlaps(&assignments))
 }
 
 fn main() {
