@@ -52,20 +52,9 @@ fn parse_moves(moves: &str) -> Vec<Move> {
     parsed
 }
 
-fn calculate_solution(crates: &str, moves: &str) -> String {
-    let mut stacks = parse_crate_stacks(crates);
-    for (move_no, crate_move) in parse_moves(moves).into_iter().enumerate() {
-        for _i in 0..crate_move.crates_to_move {
-            if let Some(c) = stacks[crate_move.from_index].pop() {
-                stacks[crate_move.to_index].push(c);
-            } else {
-                panic!("Wrong move #{move_no} {crate_move:?}");
-            }
-        }
-    }
-    // pick top crates
+fn top_crates(stacks: &[CrateStack]) -> String {
     stacks
-        .into_iter()
+        .iter()
         .filter_map(|s| {
             if let Some(&c) = s.top() {
                 Some(c)
@@ -74,6 +63,38 @@ fn calculate_solution(crates: &str, moves: &str) -> String {
             }
         })
         .collect::<String>()
+}
+
+fn use_crane_mover_9000(moves: &[Move], stacks: Vec<CrateStack>) -> Vec<CrateStack> {
+    let mut stacks = stacks;
+    for (move_no, crate_move) in moves.iter().enumerate() {
+        for _i in 0..crate_move.crates_to_move {
+            if let Some(c) = stacks[crate_move.from_index].pop() {
+                stacks[crate_move.to_index].push(c);
+            } else {
+                panic!("Wrong move #{move_no} {crate_move:?}");
+            }
+        }
+    }
+    stacks
+}
+
+fn use_crane_mover_9001(moves: &[Move], stacks: Vec<CrateStack>) -> Vec<CrateStack> {
+    let mut stacks = stacks;
+    for crate_move in moves.iter() {
+        let crates = stacks[crate_move.from_index].pop_many(crate_move.crates_to_move);
+        stacks[crate_move.to_index].push_many(crates);
+    }
+    stacks
+}
+
+fn calculate_solution(crates: &str, moves: &str) -> (String, String) {
+    let stacks = parse_crate_stacks(crates);
+    let moves = parse_moves(moves);
+    (
+        top_crates(&use_crane_mover_9000(&moves, stacks.clone())),
+        top_crates(&use_crane_mover_9001(&moves, stacks)),
+    )
 }
 
 fn main() {

@@ -25,4 +25,15 @@ impl<T> Stack<T> {
             None
         }
     }
+
+    pub fn pop_many(&mut self, count: usize) -> Vec<T> {
+        if count > self.elements.len() {
+            panic!("Too many elements to pop: {count}");
+        }
+        self.elements.drain(self.elements.len() - count..).collect()
+    }
+
+    pub fn push_many(&mut self, new_elements: Vec<T>) {
+        self.elements.extend(new_elements);
+    }
 }
