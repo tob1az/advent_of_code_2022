@@ -1,7 +1,7 @@
 mod data;
 mod filesystem;
 
-fn calculate_solution(terminal_output: &str) -> usize {
+fn deduce_directory_tree(terminal_output: &str) -> filesystem::TreeWalker {
     let mut tree_walker = filesystem::TreeWalker::default();
     let mut file_sizes = vec![];
     for line in terminal_output.lines() {
@@ -31,18 +31,41 @@ fn calculate_solution(terminal_output: &str) -> usize {
     if !file_sizes.is_empty() {
         tree_walker.populate_current_directory(&file_sizes);
     }
+    tree_walker
+}
 
-    let mut sum = 0;
+fn calculate_solution(terminal_output: &str) -> (usize, usize) {
+    let tree_walker = deduce_directory_tree(terminal_output);
+    let mut directory_sizes = vec![];
     tree_walker.traverse(&mut |n| {
         if n.is_file() {
             return;
         }
-        let size = n.size();
-        if size <= 100000 {
-            sum += size;
-        }
+        directory_sizes.push(n.size());
     });
-    sum
+
+    let small_directories_size = directory_sizes
+        .iter()
+        .filter(|s| **s <= 100_000)
+        .cloned()
+        .sum();
+    directory_sizes.sort();
+    let used_space = directory_sizes
+        .iter()
+        .cloned()
+        .max()
+        .expect("There are 1+ directories");
+    let disk_space = 70_000_000;
+    let free_space = disk_space - used_space;
+    let target_free_space = 30_000_000;
+    debug_assert!(free_space < target_free_space);
+    let bytes_to_free = target_free_space - free_space;
+    let most_fitting_directory_size = directory_sizes
+        .into_iter()
+        .filter(|s| *s > bytes_to_free)
+        .next()
+        .expect("There is a big enough directory");
+    (small_directories_size, most_fitting_directory_size)
 }
 
 fn main() {
