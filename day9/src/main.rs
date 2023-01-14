@@ -10,6 +10,18 @@ enum Motion {
     Right(Steps),
 }
 
+impl Motion {
+    fn steps(&self) -> Steps {
+        use Motion::*;
+        match *self {
+            Up(s) => s,
+            Down(s) => s,
+            Left(s) => s,
+            Right(s) => s,
+        }
+    }
+}
+
 fn parse_steps(steps: &str) -> Steps {
     steps.parse::<Steps>().expect("Integer steps")
 }
@@ -35,18 +47,17 @@ struct Position {
 }
 
 impl Position {
-    fn shift(&mut self, motion: &Motion) {
+    fn step(&mut self, motion: &Motion) {
         use Motion::*;
         match motion {
-            Up(s) => self.y += s,
-            Down(s) => self.y -= s,
-            Left(s) => self.x -= s,
-            Right(s) => self.x += s
+            Up(_) => self.y += 1,
+            Down(_) => self.y -= 1,
+            Left(_) => self.x -= 1,
+            Right(_) => self.x += 1,
         }
     }
 }
 
-#[derive(Default)]
 struct RopeSimulator {
     head: Position,
     tail: Position,
@@ -54,17 +65,65 @@ struct RopeSimulator {
 }
 
 impl RopeSimulator {
+    fn new() -> Self {
+        Self {
+            head: Position::default(),
+            tail: Position::default(),
+            visited_tail_positions: [Position::default()].into_iter().collect(), // tail is at the origin
+        }
+    }
+
     fn pull_rope(&mut self, motion: &Motion) {
-        self.head.shift(motion);
-        // TODO: implement correct tail motion
-        self.tail.shift(motion);
-        self.visited_tail_positions.insert(self.tail.clone());
+        let steps = motion.steps();
+        for _ in 0..steps {
+            self.head.step(motion);
+            if self.tail_too_far_away() {
+                self.pull_tail(motion);
+                self.visited_tail_positions.insert(self.tail.clone());
+            }
+        }
+    }
+
+    fn tail_too_far_away(&self) -> bool {
+        (self.head.x - self.tail.x).abs() > 1 || (self.head.y - self.tail.y).abs() > 1
+    }
+
+    fn pull_tail(&mut self, motion: &Motion) {
+        if (self.head.x - self.tail.x).abs() > 1 || (self.head.y - self.tail.y).abs() > 1 {
+            use Motion::*;
+            match motion {
+                Up(_) => {
+                    self.tail = Position {
+                        x: self.head.x,
+                        y: self.head.y - 1,
+                    }
+                }
+                Down(_) => {
+                    self.tail = Position {
+                        x: self.head.x,
+                        y: self.head.y + 1,
+                    }
+                }
+                Left(_) => {
+                    self.tail = Position {
+                        x: self.head.x + 1,
+                        y: self.head.y,
+                    }
+                }
+                Right(_) => {
+                    self.tail = Position {
+                        x: self.head.x - 1,
+                        y: self.head.y,
+                    }
+                }
+            }
+        }
     }
 }
 
 fn calculate_solution(motions: &str) -> usize {
     let motions = motions.lines().map(|l| Motion::from(l)).collect::<Vec<_>>();
-    let mut simulator = RopeSimulator::default();
+    let mut simulator = RopeSimulator::new();
     for motion in motions.into_iter() {
         simulator.pull_rope(&motion);
     }
