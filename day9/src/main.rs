@@ -1,4 +1,5 @@
 mod data;
+use std::collections::HashSet;
 
 type Steps = i32;
 
@@ -25,9 +26,49 @@ impl From<&str> for Motion {
     }
 }
 
+type Coordinate = i32;
+
+#[derive(Default, PartialEq, Eq, Hash, Clone)]
+struct Position {
+    x: Coordinate,
+    y: Coordinate,
+}
+
+impl Position {
+    fn shift(&mut self, motion: &Motion) {
+        use Motion::*;
+        match motion {
+            Up(s) => self.y += s,
+            Down(s) => self.y -= s,
+            Left(s) => self.x -= s,
+            Right(s) => self.x += s
+        }
+    }
+}
+
+#[derive(Default)]
+struct RopeSimulator {
+    head: Position,
+    tail: Position,
+    visited_tail_positions: HashSet<Position>,
+}
+
+impl RopeSimulator {
+    fn pull_rope(&mut self, motion: &Motion) {
+        self.head.shift(motion);
+        // TODO: implement correct tail motion
+        self.tail.shift(motion);
+        self.visited_tail_positions.insert(self.tail.clone());
+    }
+}
+
 fn calculate_solution(motions: &str) -> usize {
-    let _motions = motions.lines().map(|l| Motion::from(l)).collect::<Vec<_>>();
-    0
+    let motions = motions.lines().map(|l| Motion::from(l)).collect::<Vec<_>>();
+    let mut simulator = RopeSimulator::default();
+    for motion in motions.into_iter() {
+        simulator.pull_rope(&motion);
+    }
+    simulator.visited_tail_positions.len()
 }
 
 fn main() {
