@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 type Steps = i32;
 
+#[derive(Clone, Debug)]
 enum Motion {
     Up(Steps),
     Down(Steps),
@@ -40,7 +41,7 @@ impl From<&str> for Motion {
 
 type Coordinate = i32;
 
-#[derive(Default, PartialEq, Eq, Hash, Clone)]
+#[derive(Default, PartialEq, Eq, Hash, Clone, Debug)]
 struct Position {
     x: Coordinate,
     y: Coordinate,
@@ -56,19 +57,33 @@ impl Position {
             Right(_) => self.x += 1,
         }
     }
+    
+    fn approach(&mut self, position: &Position) {
+        let delta_x = position.x - self.x;
+        if delta_x > 0 {
+            self.x += 1;
+        } else if delta_x < 0 {
+            self.x -= 1;
+        }
+        let delta_y = position.y - self.y;
+        if delta_y > 0 {
+            self.y += 1;
+        } else if delta_y < 0 {
+            self.y -= 1;
+        }
+    }
 }
 
 struct RopeSimulator {
-    head: Position,
-    tail: Position,
+    knots: Vec<Position>,
     visited_tail_positions: HashSet<Position>,
 }
 
 impl RopeSimulator {
-    fn new() -> Self {
+    fn new(size: usize) -> Self {
+        assert!(size >= 2);
         Self {
-            head: Position::default(),
-            tail: Position::default(),
+            knots: vec![Position::default(); size],
             visited_tail_positions: [Position::default()].into_iter().collect(), // tail is at the origin
         }
     }
@@ -76,58 +91,41 @@ impl RopeSimulator {
     fn pull_rope(&mut self, motion: &Motion) {
         let steps = motion.steps();
         for _ in 0..steps {
-            self.head.step(motion);
-            if self.tail_too_far_away() {
-                self.pull_tail(motion);
-                self.visited_tail_positions.insert(self.tail.clone());
-            }
-        }
-    }
-
-    fn tail_too_far_away(&self) -> bool {
-        (self.head.x - self.tail.x).abs() > 1 || (self.head.y - self.tail.y).abs() > 1
-    }
-
-    fn pull_tail(&mut self, motion: &Motion) {
-        if (self.head.x - self.tail.x).abs() > 1 || (self.head.y - self.tail.y).abs() > 1 {
-            use Motion::*;
-            match motion {
-                Up(_) => {
-                    self.tail = Position {
-                        x: self.head.x,
-                        y: self.head.y - 1,
-                    }
-                }
-                Down(_) => {
-                    self.tail = Position {
-                        x: self.head.x,
-                        y: self.head.y + 1,
-                    }
-                }
-                Left(_) => {
-                    self.tail = Position {
-                        x: self.head.x + 1,
-                        y: self.head.y,
-                    }
-                }
-                Right(_) => {
-                    self.tail = Position {
-                        x: self.head.x - 1,
-                        y: self.head.y,
+            let head = self.knots.iter_mut().next().unwrap();
+            head.step(motion);
+            let knot_count = self.knots.len();
+            for i in 1..knot_count {
+                // cannot have mutable and immutable references of the same vec
+                let lead = self.knots[i - 1].clone();
+                let knot = &mut self.knots[i];
+                if Self::knots_too_far_away(knot, &lead) {
+                    knot.approach(&lead);
+                    if Self::knots_too_far_away(knot, &lead) {
+                        panic!("{knot:?} is too far from {lead:?}; step {i}, {motion:?}");
                     }
                 }
             }
+            self.visited_tail_positions
+                .insert(self.knots.last().unwrap().clone());
         }
+    }
+
+    fn knots_too_far_away(knot1: &Position, knot2: &Position) -> bool {
+        (knot1.x - knot2.x).abs() > 1 || (knot1.y - knot2.y).abs() > 1
     }
 }
 
-fn calculate_solution(motions: &str) -> usize {
-    let motions = motions.lines().map(|l| Motion::from(l)).collect::<Vec<_>>();
-    let mut simulator = RopeSimulator::new();
-    for motion in motions.into_iter() {
-        simulator.pull_rope(&motion);
+fn simulate_rope(size: usize, motions: &[Motion]) -> usize {
+    let mut simulator = RopeSimulator::new(size);
+    for motion in motions {
+        simulator.pull_rope(motion);
     }
     simulator.visited_tail_positions.len()
+}
+
+fn calculate_solution(motions: &str) -> (usize, usize) {
+    let motions = motions.lines().map(Motion::from).collect::<Vec<_>>();
+    (simulate_rope(2, &motions), simulate_rope(10, &motions))
 }
 
 fn main() {
