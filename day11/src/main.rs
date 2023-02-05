@@ -13,11 +13,7 @@ struct Monkey {
 }
 
 fn last_number(line: &str) -> usize {
-    line.rsplit_once(' ')
-        .unwrap()
-        .1
-        .parse::<WorryLevel>()
-        .unwrap()
+    line.rsplit_once(' ').unwrap().1.parse::<usize>().unwrap()
 }
 
 impl Monkey {
@@ -56,12 +52,11 @@ impl Monkey {
     }
 
     fn inspect_item(&self, item: WorryLevel) -> WorryLevel {
-        let item = match self.operation {
+        match &self.operation {
             Operation::Add(x) => item + x,
             Operation::Multiply(x) => item * x,
             Operation::Square => item * item,
-        };
-        item / 3
+        }
     }
 }
 
@@ -72,18 +67,23 @@ enum Operation {
     Square,
 }
 
-fn calculate_solution(notes: &str) -> usize {
-    let mut monkeys = notes.split("\n\n").map(Monkey::new).collect::<Vec<_>>();
-    dbg!(&monkeys);
-    for round in 1..=20 {
+fn level_of_monkey_business(monkeys: Vec<Monkey>, relief_divisor: usize, rounds: usize) -> usize {
+    let mut monkeys = monkeys;
+    // limit the worry level by applying the Chinese Remainder Theorem (all divisors are primes)
+    let gcd = monkeys
+        .iter()
+        .map(|m| m.test_divisor)
+        .product::<WorryLevel>();
+    let monkey_count = monkeys.len();
+    for round in 1..=rounds {
         println!("Round {round}");
-        for i in 0..monkeys.len() {
+        for i in 0..monkey_count {
             let monkey = monkeys[i].clone();
             let inspection_count = monkey.items.len();
             monkey
                 .items
                 .iter()
-                .map(|i| monkey.inspect_item(*i))
+                .map(|i| monkey.inspect_item(*i) / relief_divisor % gcd)
                 .for_each(|i| {
                     let recipient_number = if i % monkey.test_divisor == 0 {
                         monkey.true_monkey_number
@@ -95,19 +95,7 @@ fn calculate_solution(notes: &str) -> usize {
             monkeys[i].items.clear();
             monkeys[i].inspection_count += inspection_count;
         }
-        for i in 0..monkeys.len() {
-            println!(
-                "Monkey {i}: {}",
-                monkeys[i]
-                    .items
-                    .iter()
-                    .map(|i| i.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        }
     }
-    dbg!(&monkeys);
     monkeys.sort_by_key(|m| m.inspection_count);
     monkeys
         .iter()
@@ -115,6 +103,14 @@ fn calculate_solution(notes: &str) -> usize {
         .map(|m| m.inspection_count)
         .take(2)
         .product()
+}
+
+fn calculate_solution(notes: &str) -> (usize, usize) {
+    let monkeys = notes.split("\n\n").map(Monkey::new).collect::<Vec<_>>();
+    (
+        level_of_monkey_business(monkeys.clone(), 3, 20),
+        level_of_monkey_business(monkeys, 1, 10000),
+    )
 }
 
 fn main() {
