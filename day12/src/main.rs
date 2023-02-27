@@ -53,7 +53,7 @@ fn update_graph_edges(
     }
 }
 
-fn calculate_solution(height_map: &str) -> usize {
+fn build_graph(height_map: &str) -> (HeightGraph, NodeIndex, Vec<NodeIndex>) {
     let heights = height_map
         .lines()
         .map(|l| {
@@ -74,16 +74,29 @@ fn calculate_solution(height_map: &str) -> usize {
     let mut graph = Graph::new();
     let mut upper_row = Vec::new();
     let mut start_index = None;
+    let mut bottom_indices = vec![];
     for (j, row) in heights.iter().enumerate() {
         let mut previous: Option<(NodeIndex, Point)> = None;
         let mut current_row = Vec::new();
         for (i, point) in row.iter().enumerate() {
             let point_index = graph.add_node((point.clone(), i, j));
-            if matches!(point, Point::Start) {
-                start_index = Some(point_index);
+            match point {
+                Point::Start => {
+                    start_index = Some(point_index);
+                    bottom_indices.push(point_index);
+                }
+                Point::AtHeight(0) => bottom_indices.push(point_index),
+                _ => (),
             }
+
             if let Some((previous_index, previous_point)) = previous {
-                update_graph_edges(&mut graph, point_index, point, previous_index, &previous_point);
+                update_graph_edges(
+                    &mut graph,
+                    point_index,
+                    point,
+                    previous_index,
+                    &previous_point,
+                );
             }
             if upper_row.len() > 0 {
                 let (upper_index, upper_point) = &upper_row[i];
@@ -94,16 +107,31 @@ fn calculate_solution(height_map: &str) -> usize {
         }
         upper_row = current_row;
     }
+    (graph, start_index.unwrap(), bottom_indices)
+}
+
+fn find_shortest_path_to_top(from: NodeIndex, graph: &HeightGraph) -> Option<usize> {
     let result = astar(
         &graph,
-        start_index.unwrap(),
+        from,
         |n| matches!(graph[n].0, Point::Top),
         |e| *e.weight(),
         |_| 0,
     );
-    let shortest_path = result.unwrap().1;
+    let shortest_path = result?.1;
     // number of edges
-    shortest_path.len() - 1
+    Some(shortest_path.len() - 1)
+}
+
+fn calculate_solution(height_map: &str) -> (usize, usize) {
+    let (graph, start_index, bottom_indices) = build_graph(height_map);
+    let shortest_from_start = find_shortest_path_to_top(start_index, &graph);
+    let shortest_overall = bottom_indices
+        .into_iter()
+        .filter_map(|i| find_shortest_path_to_top(i, &graph))
+        .min()
+        .unwrap();
+    (shortest_from_start.unwrap(), shortest_overall)
 }
 
 fn main() {
