@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Eq)]
 pub enum Packet {
     Digit(u32),
     Nested(Vec<Packet>),
@@ -18,17 +18,19 @@ impl Packet {
                 }
                 ',' | ']' => {
                     if !number.is_empty() {
-                        nested_packets.last_mut()?.push(Packet::Digit(number.parse().ok()?));
+                        nested_packets
+                            .last_mut()?
+                            .push(Packet::Digit(number.parse().ok()?));
                         number.clear()
                     }
                     if c == ']' {
-                        if nested_packets.len() > 1 {
-                            let packet = nested_packets.pop()?;
-                            nested_packets.last_mut()?.push(Packet::Nested(packet));
-                        } else if nested_packets.len() == 1 {
-                            return Some(Packet::Nested(nested_packets.pop()?));
-                        } else {
-                            return None;
+                        match nested_packets.len() {
+                            2.. => {
+                                let packet = nested_packets.pop()?;
+                                nested_packets.last_mut()?.push(Packet::Nested(packet));
+                            }
+                            1 => return Some(Packet::Nested(nested_packets.pop()?)),
+                            _ => return None,
                         }
                     }
                 }
@@ -47,6 +49,18 @@ impl PartialOrd for Packet {
             (Nested(l), Nested(r)) => l.partial_cmp(r),
             (Digit(_), Nested(r)) => vec![self.clone()].partial_cmp(r),
             (Nested(l), Digit(_)) => l.partial_cmp(&vec![other.clone()]),
+        }
+    }
+}
+
+impl Ord for Packet {
+    fn cmp(&self, other: &Self) -> Ordering {
+        use Packet::*;
+        match (self, other) {
+            (Digit(l), Digit(r)) => l.cmp(r),
+            (Nested(l), Nested(r)) => l.cmp(r),
+            (Digit(_), Nested(r)) => vec![self.clone()].cmp(r),
+            (Nested(l), Digit(_)) => l.cmp(&vec![other.clone()]),
         }
     }
 }
