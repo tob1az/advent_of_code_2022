@@ -44,7 +44,7 @@ impl fmt::Display for Cave {
             for tile in row {
                 write!(f, "{}", tile)?;
             }
-            writeln!(f, "")?;
+            writeln!(f)?;
         }
         write!(f, "{}", self.max_y)
     }
@@ -58,7 +58,7 @@ pub fn parse_cave(rock_scan: &str) -> Cave {
                 .split(" -> ")
                 .map(|coord| {
                     coord
-                        .split_once(",")
+                        .split_once(',')
                         .map(|(x, y)| Point {
                             x: x.parse::<usize>().unwrap(),
                             y: y.parse::<usize>().unwrap(),
@@ -111,7 +111,7 @@ impl Cave {
             if matches!(next, Tile::Empty) {
                 continue;
             }
-            if x == self.min_x {
+            if x == self.min_x || y == 0 {
                 return false;
             }
             x -= 1;
@@ -127,13 +127,14 @@ impl Cave {
             if matches!(next, Tile::Empty) {
                 continue;
             }
-            if y == 0 {
-                return false;
-            }
             let settled = &mut self.tiles[y - 1][x - 1 - self.min_x];
             *settled = Tile::Sand;
             return true;
         }
         false
+    }
+
+    pub fn max_y(&self) -> usize {
+        self.max_y
     }
 }
