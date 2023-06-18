@@ -31,4 +31,8 @@ impl Interval {
     pub fn from(&self) -> i64 {
         self.from
     }
+
+    pub fn to(&self) -> i64 {
+        self.to
+    }
 }
