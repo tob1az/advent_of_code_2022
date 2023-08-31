@@ -77,7 +77,7 @@ fn floyd_warshall(valves: &Valves) -> TravelTimes {
 
 type Flow = usize;
 const MAX_VALVES: usize = 64;
-type ClosedValves = Bitmap<MAX_VALVES>;
+type ClosedValveBitmap = Bitmap<MAX_VALVES>;
 
 struct Solver {
     valves: Valves,
@@ -85,44 +85,47 @@ struct Solver {
 }
 
 const VALVE_OPEN_TIME: Time = 1;
+type Pressure = usize;
+type BestDecisions = HashMap<ClosedValveBitmap, Pressure>;
 
 impl Solver {
-    fn maximize_flow(
-        &mut self,
+    fn maximize_pressure_release(
+        &self,
         from: ValveId,
         time_left: Time,
-        closed_valves: ClosedValves,
-    ) -> Flow {
+        closed_valves: ClosedValveBitmap,
+        best_decisions: &mut BestDecisions,
+        current_pressure_release: Pressure,
+    ) -> Pressure {
+        best_decisions.insert(
+            closed_valves,
+            *best_decisions
+                .get(&closed_valves)
+                .unwrap_or(&0)
+                .max(&current_pressure_release),
+        );
         closed_valves
-            .clone()
             .into_iter()
             .filter_map(|to| {
                 let valve_time = self.travel_times[from][to] + VALVE_OPEN_TIME;
                 if valve_time <= time_left {
-                    let flow = self.valves[&to].flow_rate * (time_left - valve_time);
-                    let mut closed_valves = closed_valves;
-                    closed_valves.set(to, false);
-                    Some(flow + self.maximize_flow(to, time_left - valve_time, closed_valves))
+                    let pressure_release = current_pressure_release
+                        + self.valves[&to].flow_rate * (time_left - valve_time);
+                    let mut valves = closed_valves;
+                    valves.set(to, false);
+                    Some(self.maximize_pressure_release(
+                        to,
+                        time_left - valve_time,
+                        valves,
+                        best_decisions,
+                        pressure_release,
+                    ))
                 } else {
                     None
                 }
             })
             .max()
-            .unwrap_or(0)
-    }
-
-    fn solve(&mut self, time_left: Time, start_valve_id: ValveId) -> Flow {
-        assert!(self.valves.len() <= MAX_VALVES);
-        // ignore valves with zero flow rate
-        let mut closed_valves: Bitmap<MAX_VALVES> = Bitmap::new();
-        for (id, _) in self
-            .valves
-            .iter()
-            .filter(|(id, valve)| **id != start_valve_id && valve.flow_rate > 0)
-        {
-            closed_valves.set(*id, true);
-        }
-        self.maximize_flow(start_valve_id, time_left, closed_valves)
+            .unwrap_or(current_pressure_release)
     }
 
     fn new(valves: Valves, travel_times: TravelTimes) -> Self {
@@ -133,10 +136,64 @@ impl Solver {
     }
 }
 
-fn calculate_solution(scan_output: &str) -> Flow {
+fn all_closed_valves(valves: &Valves, start_valve_id: ValveId) -> ClosedValveBitmap {
+    // ignore valves with zero flow rate
+    let mut valve_bitmap = ClosedValveBitmap::new();
+    for (id, _) in valves
+        .iter()
+        .filter(|(id, valve)| valve.flow_rate > 0 && **id != start_valve_id)
+    {
+        valve_bitmap.set(*id, true);
+    }
+    valve_bitmap
+}
+
+fn find_best_pair_result(
+    elf_best_decisions: BestDecisions,
+    elephant_best_decisions: BestDecisions,
+    initial_valves: ClosedValveBitmap,
+) -> Flow {
+    elf_best_decisions
+        .iter()
+        .fold(0, |max_pressure_release, (elf_mask, elf_pressure)| {
+            elephant_best_decisions.iter().fold(
+                max_pressure_release,
+                |max_pressure_release, (elephant_mask, elephant_pressure)| {
+                    let elf_mask = *elf_mask.as_value();
+                    let elephant_mask = *elephant_mask.as_value();
+                    if (!elf_mask) & (!elephant_mask) & initial_valves.as_value() == 0 {
+                        max_pressure_release.max(elf_pressure + elephant_pressure)
+                    } else {
+                        max_pressure_release
+                    }
+                },
+            )
+        })
+}
+
+fn calculate_solution(scan_output: &str) -> (Flow, Flow) {
     let (valves, start_valve_id) = parse_valves(scan_output);
     let travel_times = floyd_warshall(&valves);
-    Solver::new(valves, travel_times).solve(30, start_valve_id)
+    let valves_count = valves.len();
+    assert!(valves_count <= MAX_VALVES);
+    let closed_valves = all_closed_valves(&valves, start_valve_id);
+    let solver = Solver::new(valves, travel_times);
+    let mut best_decisions = BestDecisions::new();
+    let best_result =
+        solver.maximize_pressure_release(start_valve_id, 30, closed_valves, &mut best_decisions, 0);
+
+    let mut elf_best_decisions = BestDecisions::new();
+    let _ = solver.maximize_pressure_release(
+        start_valve_id,
+        26,
+        closed_valves,
+        &mut elf_best_decisions,
+        0,
+    );
+    let elephant_best_decisions = elf_best_decisions.clone();
+    let best_result_with_elephant =
+        find_best_pair_result(elf_best_decisions, elephant_best_decisions, closed_valves);
+    (best_result, best_result_with_elephant)
 }
 
 fn main() {
