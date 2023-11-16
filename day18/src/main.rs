@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 mod data;
 
 type Distance = i64;
@@ -20,45 +18,24 @@ impl Point {
     }
 }
 
-#[derive(Debug, Hash)]
-struct Side {
-    from: Point,
-    to: Point,
-}
-
-impl PartialEq for Side {
-    fn eq(&self, other: &Self) -> bool {
-        (self.from == other.from && self.to == other.to)
-            || (self.from == other.to && self.to == other.from)
-    }
-}
-
-impl Eq for Side {}
-
-impl Side {
-    fn new(from: Point, to: Point) -> Self {
-        Self { from, to }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 struct Cube {
-    sides: [Side; 6],
+    origin: Point,
 }
 
 impl Cube {
-    fn from_origin(origin: Point) -> Self {
-        let opposite = origin.replicate(1, 1, 1);
-        Self {
-            sides: [
-                Side::new(origin, origin.replicate(1, 1, 0)),
-                Side::new(origin, origin.replicate(0, 1, 1)),
-                Side::new(origin, origin.replicate(1, 0, 1)),
-                Side::new(origin.replicate(1, 0, 0), opposite),
-                Side::new(origin.replicate(0, 1, 0), opposite),
-                Side::new(origin.replicate(0, 0, 1), opposite),
-            ],
-        }
+    fn new(origin: Point) -> Self {
+        Self { origin }
+    }
+    fn neighbors(&self) -> Vec<Cube> {
+        vec![
+            Cube::new(self.origin.replicate(1, 0, 0)),
+            Cube::new(self.origin.replicate(-1, 0, 0)),
+            Cube::new(self.origin.replicate(0, 1, 0)),
+            Cube::new(self.origin.replicate(0, -1, 0)),
+            Cube::new(self.origin.replicate(0, 0, 1)),
+            Cube::new(self.origin.replicate(0, 0, -1)),
+        ]
     }
 }
 
@@ -70,27 +47,30 @@ fn parse_cubes(cubes: &str) -> Vec<Cube> {
             let x = iter.next().unwrap().parse().unwrap();
             let y = iter.next().unwrap().parse().unwrap();
             let z = iter.next().unwrap().parse().unwrap();
-            Cube::from_origin(Point::new(x, y, z))
+            Cube::new(Point::new(x, y, z))
         })
         .collect()
 }
 
-fn calculate_solution(cubes: &str) -> usize {
-    let cubes = parse_cubes(cubes);
-    let mut unique_sides = HashMap::new();
-    for cube in &cubes {
-        for side in &cube.sides {
-            unique_sides
-                .entry(side)
-                .and_modify(|c| *c += 1)
-                .or_insert(1);
+fn count_surface_sides(cubes: &[Cube]) -> usize {
+    let mut surface_sides = Vec::new();
+    for cube in cubes {
+        for neighbor in cube.neighbors() {
+            if !cubes.contains(&neighbor) {
+                surface_sides.push(neighbor);
+            }
         }
     }
-    unique_sides.iter().filter(|(_, v)| **v == 1).count()
+    surface_sides.len()
+}
+
+fn calculate_solution(cubes: &str) -> usize {
+    let cubes = parse_cubes(cubes);
+    count_surface_sides(&cubes)
 }
 
 fn main() {
-    println!("Solution {}", calculate_solution(data::INPUT));
+    println!("Solution {:?}", calculate_solution(data::INPUT));
 }
 
 #[cfg(test)]
@@ -99,10 +79,12 @@ mod test {
 
     #[test]
     fn basic_case() {
-        assert_eq!(calculate_solution(data::TWO_ADJACENT), 10);
+        let cubes = parse_cubes(data::TWO_ADJACENT);
+        assert_eq!(count_surface_sides(&cubes), 10);
     }
     #[test]
     fn larger_set_case() {
-        assert_eq!(calculate_solution(data::LARGER_TEST_SAMPLE), 64);
+        let cubes = parse_cubes(data::LARGER_TEST_SAMPLE);
+        assert_eq!(count_surface_sides(&cubes), 64);
     }
 }
