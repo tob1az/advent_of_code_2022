@@ -4,9 +4,9 @@ use regex::RegexBuilder;
 
 type Number = usize;
 
-const _ORE_INDEX: usize = 0;
-const _CLAY_INDEX: usize = 1;
-const _OBSIDIAN_INDEX: usize = 2;
+const ORE_INDEX: usize = 0;
+const CLAY_INDEX: usize = 1;
+const OBSIDIAN_INDEX: usize = 2;
 const GEODE_INDEX: usize = 3;
 const MATERIAL_COUNT: usize = 4;
 type Robots = [Number; MATERIAL_COUNT];
@@ -16,6 +16,17 @@ type Inventory = [Number; MATERIAL_COUNT];
 struct Blueprint {
     number: Number,
     costs: [Cost; MATERIAL_COUNT],
+}
+
+impl Blueprint {
+    fn material_demand(&self, index: usize) -> Number {
+        let demand = self.costs.iter().map(|c| c[index]).max().unwrap();
+        if demand > 0 {
+            demand
+        } else {
+            usize::MAX
+        }
+    }
 }
 
 fn parse_blueprints(blueprints: &str) -> Vec<Blueprint> {
@@ -51,14 +62,13 @@ fn parse_blueprints(blueprints: &str) -> Vec<Blueprint> {
 
 #[derive(Default, Clone, Debug)]
 struct State {
-    minutes_left: usize,
+    minutes_left: Number,
     inventory: Inventory,
     robots: Robots,
-    log: String,
 }
 
 impl State {
-    fn mine(&self, minutes: usize) -> Self {
+    fn mine(&self, minutes: Number) -> Self {
         let mut new = self.clone();
         new.minutes_left = new
             .minutes_left
@@ -87,12 +97,14 @@ impl State {
         let cost = blueprint.costs[index];
         let mut mining_time = 1;
         for i in 0..MATERIAL_COUNT {
-            if cost[i] > 0 && self.inventory[i] + (self.minutes_left - 1) * self.robots[i] < cost[i] {
+            // have enough material or can mine it (minus one to account for building a robot with current inventory)
+            if cost[i] > 0 && self.inventory[i] + (self.minutes_left - 1) * self.robots[i] < cost[i]
+            {
                 return None;
             }
             if self.inventory[i] < cost[i] {
                 let need = cost[i] - self.inventory[i];
-                let mut time = 1 + need  / self.robots[i];
+                let mut time = 1 + need / self.robots[i];
                 if need % self.robots[i] > 0 {
                     time += 1;
                 }
@@ -121,7 +133,7 @@ impl State {
     }
 }
 
-fn go_to_next_state(blueprint: &Blueprint, state: State) -> State {
+fn go_to_next_state(blueprint: &Blueprint, max_materials: &Cost, state: State) -> State {
     if state.minutes_left == 0 {
         return state;
     }
@@ -129,9 +141,16 @@ fn go_to_next_state(blueprint: &Blueprint, state: State) -> State {
     let mut max = state.clone();
     let mut can_build_robots = false;
     for i in 0..MATERIAL_COUNT {
+        // make robots only if their number is less than maximum demand of their produce per robot
+        if state.robots[i] >= max_materials[i] {
+            continue;
+        }
         if let Some(new) = state.try_make_robot(i, blueprint) {
             can_build_robots = true;
-            max_geodes(go_to_next_state(blueprint, new), &mut max);
+            let result = go_to_next_state(blueprint, max_materials, new);
+            if result.inventory[GEODE_INDEX] >= max.inventory[GEODE_INDEX] {
+                max = result;
+            }
         }
     }
     if !can_build_robots {
@@ -142,35 +161,48 @@ fn go_to_next_state(blueprint: &Blueprint, state: State) -> State {
     max
 }
 
-fn max_geodes(state: State, max_state: &mut State) {
-    if state.inventory[GEODE_INDEX] >= max_state.inventory[GEODE_INDEX] {
-        *max_state = state;
-    }
-}
-
-fn max_open_geodes(blueprint: &Blueprint) -> usize {
+fn max_open_geodes(blueprint: &Blueprint, time_left: Number) -> Number {
     let state = State {
-        minutes_left: 24,
+        minutes_left: time_left,
         robots: [1, 0, 0, 0],
         ..Default::default()
     };
-    let result = go_to_next_state(blueprint, state);
-    println!(
-        "BP {} => {}:\n {}",
-        blueprint.number, result.inventory[GEODE_INDEX], result.log
-    );
+    let max_materials = [
+        blueprint.material_demand(ORE_INDEX),
+        blueprint.material_demand(CLAY_INDEX),
+        blueprint.material_demand(OBSIDIAN_INDEX),
+        blueprint.material_demand(GEODE_INDEX),
+    ];
+    let result = go_to_next_state(blueprint, &max_materials, state);
     result.inventory[GEODE_INDEX]
 }
 
-fn calculate_solution(blueprints: &str) -> usize {
-    let blueprints = parse_blueprints(blueprints);
+fn part_1_solution(blueprints: &[Blueprint]) -> Number {
     blueprints
         .iter()
         .map(|b| {
-            let best = max_open_geodes(b);
+            let best = max_open_geodes(b, 24);
+            println!("BP #{} => {}", b.number, best);
             best * b.number
         })
         .sum()
+}
+
+fn part_2_solution(blueprints: &[Blueprint]) -> Number {
+    blueprints
+        .iter()
+        .take(3)
+        .map(|b| {
+            let best = max_open_geodes(b, 32);
+            println!("BP2 #{} => {}", b.number, best);
+            best
+        })
+        .product()
+}
+
+fn calculate_solution(blueprints: &str) -> (Number, Number) {
+    let blueprints = parse_blueprints(blueprints);
+    (part_1_solution(&blueprints), part_2_solution(&blueprints))
 }
 
 fn main() {
@@ -182,7 +214,14 @@ mod test {
     use super::*;
 
     #[test]
-    fn reference_case() {
-        assert_eq!(calculate_solution(data::TEST_INPUT), 33);
+    fn reference_case_part_1() {
+        let blueprints = parse_blueprints(data::TEST_INPUT);
+        assert_eq!(part_1_solution(&blueprints), 33);
+    }
+
+    #[test]
+    fn reference_case_part_2() {
+        let blueprints = parse_blueprints(data::TEST_INPUT);
+        assert_eq!(part_2_solution(&blueprints), 56 * 62);
     }
 }
