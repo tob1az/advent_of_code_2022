@@ -26,21 +26,21 @@ impl std::fmt::Display for EncryptedFile {
     }
 }
 
-fn parse_file(file: &str) -> EncryptedFile {
+fn parse_file(file: &str, key: Number) -> EncryptedFile {
     EncryptedFile(
         file.lines()
             .enumerate()
             .map(|(n, line)| OrderedNumber {
-                index: n as Number,
-                value: line.parse::<Number>().unwrap(),
+                index: (n as Number),
+                value: line.parse::<Number>().unwrap() * key,
             })
             .collect::<Vec<_>>(),
     )
 }
 
 impl EncryptedFile {
-    fn mix(mut self) -> PlaintextFile {
-        println!("mixing {}", self);
+    fn mix(&mut self) {
+        //println!("mixing {}", self);
         let len = self.0.len() as Number;
         for index in 0..len {
             let (position, number) = self
@@ -54,7 +54,7 @@ impl EncryptedFile {
                 })
                 .unwrap();
             let number = number.clone();
-            let mut insert = (position as Number + number.value) % (len - 1);
+            let mut insert = (position as Number + number.value).rem_euclid(len - 1);
             if insert <= 0 {
                 insert += len - 1;
             }
@@ -66,9 +66,11 @@ impl EncryptedFile {
                 self.0.copy_within(insert..position, insert + 1);
                 self.0[insert] = number.clone();
             }
-            // println!("mix #{index} move {}@{}: {}", number.value, insert, self);
         }
-        let data = self.0.into_iter().map(|n| n.value).collect::<Vec<_>>();
+    }
+
+    fn to_plaintext(&self) -> PlaintextFile {
+        let data = self.0.iter().map(|n| n.value).collect::<Vec<_>>();
         PlaintextFile {
             zero_offset: data.iter().position(|n| *n == 0).unwrap(),
             data,
@@ -88,11 +90,18 @@ impl PlaintextFile {
     }
 }
 
-fn calculate_solution(file: &str) -> Number {
-    let encrypted = parse_file(file);
-    let plaintext = encrypted.mix();
+fn decrypt(file: &str, key: Number, mix_count: usize) -> Number {
+    let mut encrypted = parse_file(file, key);
+    for _ in 0..mix_count {
+        encrypted.mix()
+    }
+    let plaintext = encrypted.to_plaintext();
     println!("plaintext: {:?}", plaintext.data);
     plaintext.look_up(1000) + plaintext.look_up(2000) + plaintext.look_up(3000)
+}
+
+fn calculate_solution(file: &str) -> (Number, Number) {
+    (decrypt(file, 1, 1), decrypt(file, 811589153, 10))
 }
 
 fn main() {
@@ -105,6 +114,11 @@ mod test {
 
     #[test]
     fn reference_case_part_1() {
-        assert_eq!(calculate_solution(data::TEST_FILE), 3);
+        assert_eq!(decrypt(data::TEST_FILE, 1, 1), 3);
+    }
+
+    #[test]
+    fn reference_case_part_2() {
+        assert_eq!(decrypt(data::TEST_FILE, 811589153, 10), 1623178306);
     }
 }
