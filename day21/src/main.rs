@@ -6,10 +6,10 @@ type Number = i64;
 type Name = String;
 
 enum Operation {
-    Assign {value: Number },
-    Add {operands: [Name; 2] },
+    Assign { value: Number },
+    Add { operands: [Name; 2] },
     Subtract { operands: [Name; 2] },
-    Multiply {operands: [Name; 2] },
+    Multiply { operands: [Name; 2] },
     Divide { operands: [Name; 2] },
 }
 
@@ -19,10 +19,11 @@ struct Solver {
 
 impl Solver {
     fn solve(self) -> Number {
-        let mut variables = self.operations
+        let mut variables = self
+            .operations
             .iter()
             .filter_map(|o| match o {
-                (name, Operation::Assign {  value }) => Some((name.clone(), *value)),
+                (name, Operation::Assign { value }) => Some((name.clone(), *value)),
                 _ => None,
             })
             .collect::<HashMap<Name, Number>>();
@@ -36,29 +37,29 @@ impl Solver {
                             if a.is_some() && b.is_some() {
                                 variables.insert(name.clone(), a.unwrap() + b.unwrap());
                             }
-                        },
+                        }
                         Operation::Subtract { operands } => {
                             let a = variables.get(&operands[0]);
                             let b = variables.get(&operands[1]);
                             if a.is_some() && b.is_some() {
                                 variables.insert(name.clone(), a.unwrap() - b.unwrap());
                             }
-                        },
+                        }
                         Operation::Multiply { operands } => {
                             let a = variables.get(&operands[0]);
                             let b = variables.get(&operands[1]);
                             if a.is_some() && b.is_some() {
                                 variables.insert(name.clone(), a.unwrap() * b.unwrap());
                             }
-                        },
+                        }
                         Operation::Divide { operands } => {
                             let a = variables.get(&operands[0]);
                             let b = variables.get(&operands[1]);
                             if a.is_some() && b.is_some() {
                                 variables.insert(name.clone(), a.unwrap() / b.unwrap());
                             }
-                        },
-                        _ => ()
+                        }
+                        _ => (),
                     }
                 } else if name == "root" {
                     return variables[name];
@@ -102,7 +103,7 @@ fn parse_operation(input: &str) -> HashMap<Name, Operation> {
 
 fn calculate_solution(input: &str) -> Number {
     let operations = parse_operation(input);
-    let solver = Solver{operations};
+    let solver = Solver { operations };
     solver.solve()
 }
 
