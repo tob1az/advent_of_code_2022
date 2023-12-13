@@ -3,108 +3,92 @@ mod data;
 use std::collections::HashMap;
 
 type Number = i64;
-type Name = String;
 
-enum Operation {
-    Assign { value: Number },
-    Add { operands: [Name; 2] },
-    Subtract { operands: [Name; 2] },
-    Multiply { operands: [Name; 2] },
-    Divide { operands: [Name; 2] },
+enum Operand {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
 }
 
-struct Solver {
-    operations: HashMap<Name, Operation>,
-}
-
-impl Solver {
-    fn solve(self) -> Number {
-        let mut variables = self
-            .operations
-            .iter()
-            .filter_map(|o| match o {
-                (name, Operation::Assign { value }) => Some((name.clone(), *value)),
-                _ => None,
-            })
-            .collect::<HashMap<Name, Number>>();
-        loop {
-            for (name, operation) in &self.operations {
-                if !variables.contains_key(name) {
-                    match operation {
-                        Operation::Add { operands } => {
-                            let a = variables.get(&operands[0]);
-                            let b = variables.get(&operands[1]);
-                            if a.is_some() && b.is_some() {
-                                variables.insert(name.clone(), a.unwrap() + b.unwrap());
-                            }
-                        }
-                        Operation::Subtract { operands } => {
-                            let a = variables.get(&operands[0]);
-                            let b = variables.get(&operands[1]);
-                            if a.is_some() && b.is_some() {
-                                variables.insert(name.clone(), a.unwrap() - b.unwrap());
-                            }
-                        }
-                        Operation::Multiply { operands } => {
-                            let a = variables.get(&operands[0]);
-                            let b = variables.get(&operands[1]);
-                            if a.is_some() && b.is_some() {
-                                variables.insert(name.clone(), a.unwrap() * b.unwrap());
-                            }
-                        }
-                        Operation::Divide { operands } => {
-                            let a = variables.get(&operands[0]);
-                            let b = variables.get(&operands[1]);
-                            if a.is_some() && b.is_some() {
-                                variables.insert(name.clone(), a.unwrap() / b.unwrap());
-                            }
-                        }
-                        _ => (),
-                    }
-                } else if name == "root" {
-                    return variables[name];
-                }
-            }
+impl Operand {
+    fn apply(&self, a: Number, b: Number) -> Number {
+        match self {
+            Self::Add => a + b,
+            Self::Subtract => a - b,
+            Self::Multiply => a * b,
+            Self::Divide => a / b,
         }
     }
 }
 
-fn parse_operation(input: &str) -> HashMap<Name, Operation> {
-    input
-        .lines()
-        .map(|l| {
-            let (name, expr) = l.split_once(": ").unwrap();
-            let name = name.to_owned();
-            let operation = if let Ok(value) = expr.parse() {
-                Operation::Assign { value }
-            } else if let Some((a, b)) = expr.split_once(" + ") {
-                Operation::Add {
-                    operands: [a.to_owned(), b.to_owned()],
-                }
-            } else if let Some((a, b)) = expr.split_once(" - ") {
-                Operation::Subtract {
-                    operands: [a.to_owned(), b.to_owned()],
-                }
-            } else if let Some((a, b)) = expr.split_once(" * ") {
-                Operation::Multiply {
-                    operands: [a.to_owned(), b.to_owned()],
-                }
-            } else if let Some((a, b)) = expr.split_once(" / ") {
-                Operation::Divide {
-                    operands: [a.to_owned(), b.to_owned()],
-                }
+enum Operation {
+    Assign { value: Number },
+    Binary(Box<(Operation, Operand, Operation)>),
+    HumanAssign { value: Number },
+}
+
+impl Operation {
+    fn new(name: &str, expression: &str, other_operations: &HashMap<&str, &str>) -> Self {
+        if let Ok(value) = expression.parse() {
+            return if name == "humn" {
+                Self::HumanAssign { value }
             } else {
-                unreachable!()
+                Self::Assign { value }
             };
-            (name, operation)
-        })
-        .collect()
+        }
+        let (left_name, rest) = expression.split_once(' ').unwrap();
+        let (operand, right_name) = rest.split_once(' ').unwrap();
+        let operand = match operand {
+            "+" => Operand::Add,
+            "-" => Operand::Subtract,
+            "*" => Operand::Multiply,
+            "/" => Operand::Divide,
+            _ => unreachable!(),
+        };
+        let left_expression = other_operations.get(left_name).unwrap();
+        let right_expression = other_operations.get(right_name).unwrap();
+        Self::Binary(Box::new((
+            Self::new(left_name, *left_expression, other_operations),
+            operand,
+            Self::new(right_name, *right_expression, other_operations),
+        )))
+    }
+}
+
+struct Solver {
+    root: Operation,
+}
+
+impl Solver {
+    fn calculate_root(&self) -> Number {
+        self.calculate(&self.root)
+    }
+
+    fn calculate(&self, operation: &Operation) -> Number {
+        match operation {
+            Operation::Assign { value } => *value,
+            Operation::HumanAssign { value } => *value,
+            Operation::Binary(binary) => binary
+                .1
+                .apply(self.calculate(&binary.0), self.calculate(&binary.2)),
+        }
+    }
+}
+
+fn parse_operations(input: &str) -> Operation {
+    let expressions = input
+        .lines()
+        .map(|l| l.split_once(": ").unwrap())
+        .collect::<HashMap<_, _>>();
+    let root = expressions.get("root").unwrap();
+    Operation::new("root", *root, &expressions)
 }
 
 fn calculate_solution(input: &str) -> Number {
-    let operations = parse_operation(input);
-    let solver = Solver { operations };
-    solver.solve()
+    let root = parse_operations(input);
+    let solver = Solver { root };
+    solver.calculate_root()
 }
 
 fn main() {
