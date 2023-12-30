@@ -159,7 +159,14 @@ struct Simulation {
 }
 
 impl Simulation {
-    fn round(&mut self) {
+    fn new(elf_positions: HashSet<Point>) -> Self {
+        Self {
+            elf_positions,
+            start_from: Direction::N,
+        }
+    }
+
+    fn spread_elves(&mut self) -> bool {
         // propose move
         let mut proposed_moves = HashMap::new();
         for position in &self.elf_positions {
@@ -187,6 +194,9 @@ impl Simulation {
                     .push(position.clone());
             }
         }
+        if proposed_moves.is_empty() {
+            return false;
+        }
         // eliminate conflicts
         proposed_moves.retain(|_, v| v.len() == 1);
         let to_delete = proposed_moves.values().flatten().collect::<HashSet<_>>();
@@ -196,6 +206,7 @@ impl Simulation {
         self.elf_positions.extend(proposed_moves.keys().cloned());
 
         self.start_from = cardinal_directions_from(self.start_from).nth(1).unwrap();
+        true
     }
 
     fn has_empty_tiles(&self, point: &Point, start_from: Direction, position_count: usize) -> bool {
@@ -240,18 +251,32 @@ impl Simulation {
     }
 }
 
-fn calculate_solution(input: &str) -> usize {
-    let mut simulation = Simulation {
-        elf_positions: parse_elf_positions(input),
-        start_from: Direction::N,
-    };
+fn part1(elf_positions: HashSet<Point>) -> usize {
+    let mut simulation = Simulation::new(elf_positions);
     simulation.print_tiles();
     for i in 0..10 {
         println!("round {i}");
-        simulation.round();
+        let _ = simulation.spread_elves();
         simulation.print_tiles();
     }
     simulation.count_empty_tiles()
+}
+
+fn part2(elf_positions: HashSet<Point>) -> usize {
+    let mut simulation = Simulation::new(elf_positions);
+    simulation.print_tiles();
+    let mut rounds = 1;
+    while simulation.spread_elves() {
+        println!("round {rounds}");
+        simulation.print_tiles();
+        rounds += 1;
+    }
+    rounds
+}
+
+fn calculate_solution(input: &str) -> (usize, usize) {
+    let elfs = parse_elf_positions(input);
+    (part1(elfs.clone()), part2(elfs))
 }
 
 fn main() {
@@ -264,6 +289,11 @@ mod test {
 
     #[test]
     fn reference_case_part_1() {
-        assert_eq!(calculate_solution(data::TEST_INPUT), 110);
+        assert_eq!(part1(parse_elf_positions(data::TEST_INPUT)), 110);
+    }
+
+    #[test]
+    fn reference_case_part_2() {
+        assert_eq!(part2(parse_elf_positions(data::TEST_INPUT)), 20);
     }
 }
