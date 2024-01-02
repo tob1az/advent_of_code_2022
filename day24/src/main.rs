@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, mem::swap};
 
 mod data;
 
@@ -78,7 +78,7 @@ struct Solver {
 }
 
 impl Solver {
-    fn solve(&self) -> Number {
+    fn shortest_path(&mut self) -> Number {
         let mut positions = HashSet::from_iter([self.entry.clone()]);
         let mut blizzards = self.blizzards.clone();
         let mut minutes = 1;
@@ -100,7 +100,7 @@ impl Solver {
                         None => Some(position.clone()),
                     } {
                         if new_position == self.exit {
-                            dbg!(positions.len());
+                            self.blizzards = blizzards;
                             return minutes;
                         }
 
@@ -146,6 +146,11 @@ impl Solver {
             })
             .collect();
         *blizzards = new;
+    }
+
+    fn reverse_shortest_path(&mut self) -> Number {
+        swap(&mut self.entry, &mut self.exit);
+        self.shortest_path()
     }
 }
 
@@ -194,9 +199,11 @@ fn parse_input(input: &str) -> Solver {
     }
 }
 
-fn calculate_solution(input: &str) -> Number {
-    let solver = parse_input(input);
-    solver.solve()
+fn calculate_solution(input: &str) -> (Number, Number) {
+    let mut solver = parse_input(input);
+    let there = solver.shortest_path();
+    let fetch_food = there + solver.reverse_shortest_path() + solver.reverse_shortest_path();
+    (there, fetch_food)
 }
 
 fn main() {
@@ -209,6 +216,18 @@ mod test {
 
     #[test]
     fn reference_case_part_1() {
-        assert_eq!(calculate_solution(data::TEST_INPUT), 18);
+        let mut solver = parse_input(data::TEST_INPUT);
+        assert_eq!(solver.shortest_path(), 18);
+    }
+
+    #[test]
+    fn reference_case_part_2() {
+        let mut solver = parse_input(data::TEST_INPUT);
+        assert_eq!(
+            solver.shortest_path()
+                + solver.reverse_shortest_path()
+                + solver.reverse_shortest_path(),
+            54
+        );
     }
 }
